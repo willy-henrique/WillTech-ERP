@@ -11,7 +11,7 @@ import {
   XCircle,
   ArrowRightLeft
 } from 'lucide-react';
-import { MOCK_QUOTATIONS } from '../mocks';
+import { quotationService } from '../services/quotationService';
 import { Quotation } from '../types';
 import { Button } from '../../../components/ui/Button';
 import { Card } from '../../../components/ui/Card';
@@ -22,14 +22,36 @@ import { clsx } from 'clsx';
 export function QuotationListPage() {
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+  const loadQuotations = () => quotationService.getQuotations().then(setQuotations);
 
   useEffect(() => {
-    // Simula carregamento
-    setTimeout(() => {
-      setQuotations(MOCK_QUOTATIONS);
-      setLoading(false);
-    }, 500);
+    let cancelled = false;
+    setLoading(true);
+    quotationService.getQuotations().then((data) => { if (!cancelled) setQuotations(data); }).finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, []);
+
+  const handleApprove = async (id: string) => {
+    setActionLoading(id);
+    try {
+      await approveQuotationCallable(id);
+      await loadQuotations();
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleConvert = async (id: string) => {
+    setActionLoading(id);
+    try {
+      await convertQuotationToOrderCallable(id);
+      await loadQuotations();
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -38,10 +60,12 @@ export function QuotationListPage() {
           <h1 className="text-2xl font-bold text-slate-900">Orçamentos</h1>
           <p className="text-slate-500">Acompanhe propostas comerciais e conversões.</p>
         </div>
-        <Button className="gap-2">
-          <Plus className="w-4 h-4" />
-          Novo Orçamento
-        </Button>
+        <Link to="/quotations/new">
+          <Button className="gap-2">
+            <Plus className="w-4 h-4" />
+            Novo Orçamento
+          </Button>
+        </Link>
       </div>
 
       <Card className="overflow-hidden">
@@ -96,11 +120,9 @@ export function QuotationListPage() {
                       q.status === 'approved' ? 'success' :
                       q.status === 'sent' ? 'info' :
                       q.status === 'rejected' ? 'danger' :
-                      'default'
+                      q.status === 'converted' ? 'default' : 'default'
                     }>
-                      {q.status === 'sent' ? 'Enviado' : 
-                       q.status === 'approved' ? 'Aprovado' : 
-                       q.status === 'rejected' ? 'Rejeitado' : 'Rascunho'}
+                      {q.status === 'sent' ? 'Enviado' : q.status === 'approved' ? 'Aprovado' : q.status === 'rejected' ? 'Rejeitado' : q.status === 'converted' ? 'Convertido' : 'Rascunho'}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
@@ -108,9 +130,15 @@ export function QuotationListPage() {
                       <Button variant="ghost" size="sm" className="p-1.5" title="Visualizar">
                         <Eye className="w-4 h-4" />
                       </Button>
+                      {q.status === 'draft' && (
+                        <Button variant="ghost" size="sm" className="p-1.5 text-emerald-600 hover:bg-emerald-50" title="Aprovar" disabled={actionLoading === q.id} onClick={() => handleApprove(q.id)}>
+                          Aprovar
+                        </Button>
+                      )}
                       {q.status === 'approved' && (
-                        <Button variant="ghost" size="sm" className="p-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50" title="Converter em Pedido">
+                        <Button variant="ghost" size="sm" className="p-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50" title="Converter em Pedido" disabled={actionLoading === q.id} onClick={() => handleConvert(q.id)}>
                           <ArrowRightLeft className="w-4 h-4" />
+                          Converter
                         </Button>
                       )}
                       <Button variant="ghost" size="sm" className="p-1.5">

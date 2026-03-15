@@ -1,0 +1,107 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function hasRole(role) {
+      return isSignedIn() && request.auth.token.role == role;
+    }
+    function isAdmin() {
+      return hasRole('admin') || hasRole('administrador');
+    }
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || isOwner(userId);
+    }
+    match /roles/{roleId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+    match /customers/{docId} {
+      allow read, write: if isSignedIn();
+    }
+    match /suppliers/{docId} {
+      allow read, write: if isSignedIn();
+    }
+    match /materials/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+    match /grammages/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+    match /print_types/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+    match /product_templates/{docId} {
+      allow read, write: if isSignedIn();
+    }
+    match /product_variants/{docId} {
+      allow read, write: if isSignedIn();
+    }
+    match /products/{docId} {
+      allow read, write: if isSignedIn();
+    }
+    match /pricing_parameters/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+    match /pricing_parameter_history/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+    match /pricing_rules/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+    match /quotations/{docId} {
+      allow read, write: if isSignedIn();
+    }
+    match /orders/{docId} {
+      allow read, write: if isSignedIn();
+    }
+    match /production_orders/{docId} {
+      allow read, write: if isSignedIn();
+    }
+    match /production_orders/{orderId}/production_consumptions/{docId} {
+      allow read, write: if isSignedIn();
+    }
+    match /inventory_items/{docId} {
+      allow read, write: if isSignedIn();
+    }
+    match /inventory_movements/{docId} {
+      allow read, write: if isSignedIn();
+    }
+    match /financial_accounts/{docId} {
+      allow read, write: if isSignedIn();
+    }
+    match /accounts_receivable/{docId} {
+      allow read, write: if isSignedIn();
+    }
+    match /accounts_payable/{docId} {
+      allow read, write: if isSignedIn();
+    }
+    match /cash_flow_entries/{docId} {
+      allow read, write: if isSignedIn();
+    }
+    match /audit_logs/{docId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if false;
+    }
+    match /price_calculations/{docId} {
+      allow read, write: if isSignedIn();
+    }
+    match /rafia_sizes/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+  }
+}

@@ -1,17 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { 
-  ArrowLeft, 
-  Package, 
-  Maximize2, 
-  Layers, 
-  Printer, 
-  Palette,
-  BarChart3,
-  History,
-  Edit2,
-  AlertTriangle
-} from 'lucide-react';
+import { ArrowLeft, Package, Maximize2, Layers, Printer, Palette, Edit2, AlertTriangle } from 'lucide-react';
 import { productService } from '../services/productService';
 import { Product } from '../types';
 import { Button } from '../../../components/ui/Button';
@@ -99,23 +88,25 @@ export function ProductDetailPage() {
             </CardFooter>
           </Card>
 
-          <Card className="bg-amber-50 border-amber-200">
-            <CardContent className="p-4 flex gap-3">
-              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
-              <div>
-                <p className="text-sm font-bold text-amber-900">Estoque Mínimo</p>
-                <p className="text-xs text-amber-700">Este produto está com estoque abaixo do nível de segurança (5.000 un).</p>
-              </div>
-            </CardContent>
-          </Card>
+          {product.stock <= 0 && (
+            <Card className="bg-amber-50 border-amber-200">
+              <CardContent className="p-4 flex gap-3">
+                <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
+                <div>
+                  <p className="text-sm font-bold text-amber-900">Estoque zerado</p>
+                  <p className="text-xs text-amber-700">Este produto está sem saldo em estoque.</p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Right Column: Inventory & Production */}
         <div className="flex-1 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <StatCard title="Estoque Atual" value={product.stock.toLocaleString()} unit="un" color="emerald" />
-            <StatCard title="Em Produção" value="15.000" unit="un" color="blue" />
-            <StatCard title="Preço Base" value="R$ 1,85" unit="/un" color="slate" />
+            <StatCard title="Em Produção" value="—" unit="" color="blue" />
+            <StatCard title="Preço Base" value={product.priceBase > 0 ? `R$ ${product.priceBase.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—'} unit="/un" color="slate" />
           </div>
 
           <Card>
@@ -134,9 +125,9 @@ export function ProductDetailPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    <MovementRow date="13/03/2026" type="Saída" qty="-2.500" ref="PED-2026-001" />
-                    <MovementRow date="11/03/2026" type="Entrada" qty="+10.000" ref="OP-2026-1020" />
-                    <MovementRow date="08/03/2026" type="Saída" qty="-5.000" ref="PED-2026-005" />
+                    <tr>
+                      <td colSpan={4} className="px-6 py-8 text-center text-slate-400 text-sm">Nenhuma movimentação registrada. Integre o módulo de estoque para exibir entradas e saídas.</td>
+                    </tr>
                   </tbody>
                 </table>
               </div>
@@ -159,11 +150,8 @@ export function ProductDetailPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    <tr className="hover:bg-slate-50/50 transition-colors">
-                      <td className="px-6 py-4 text-sm font-bold text-slate-900">OP-2026-1024</td>
-                      <td className="px-6 py-4 text-sm text-slate-600">2.500 un</td>
-                      <td className="px-6 py-4"><Badge variant="info">Em Produção</Badge></td>
-                      <td className="px-6 py-4 text-sm text-slate-600">14/03/2026</td>
+                    <tr>
+                      <td colSpan={4} className="px-6 py-8 text-center text-slate-400 text-sm">Nenhuma ordem de produção vinculada. Integre o módulo de produção para exibir.</td>
                     </tr>
                   </tbody>
                 </table>
@@ -205,17 +193,3 @@ function StatCard({ title, value, unit, color }: any) {
   );
 }
 
-function MovementRow({ date, type, qty, ref }: any) {
-  return (
-    <tr className="hover:bg-slate-50/50 transition-colors">
-      <td className="px-6 py-4 text-sm text-slate-600">{date}</td>
-      <td className="px-6 py-4">
-        <Badge variant={type === 'Entrada' ? 'success' : 'danger'}>{type}</Badge>
-      </td>
-      <td className={`px-6 py-4 text-sm font-bold ${type === 'Entrada' ? 'text-emerald-600' : 'text-red-600'}`}>
-        {qty}
-      </td>
-      <td className="px-6 py-4 text-sm text-slate-500 font-medium">{ref}</td>
-    </tr>
-  );
-}

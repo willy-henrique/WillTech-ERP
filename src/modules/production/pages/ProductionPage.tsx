@@ -1,15 +1,7 @@
 import { useState, useEffect } from 'react';
-import { 
-  Factory, 
-  Play, 
-  Pause, 
-  CheckCircle2, 
-  AlertCircle,
-  Clock,
-  Settings,
-  ArrowRight
-} from 'lucide-react';
+import { Factory, Play, Pause, CheckCircle2, Clock, Settings, AlertCircle } from 'lucide-react';
 import { clsx } from 'clsx';
+import { getProductionOrders } from '../services/productionOrderService';
 
 interface ProductionOrder {
   id: string;
@@ -23,33 +15,34 @@ interface ProductionOrder {
   waste: number;
 }
 
-const MOCK_PO: ProductionOrder[] = [
-  {
-    id: 'OP-2026-1024',
-    orderId: 'PED-2026-001',
-    productName: 'Saco Ráfia Laminado 60x90',
-    plannedQty: 2500,
-    producedQty: 1800,
-    status: 'in_progress',
-    startDate: '2026-03-13 08:00',
-    estimatedFinish: '2026-03-14 12:00',
-    waste: 12,
-  },
-  {
-    id: 'OP-2026-1025',
-    orderId: 'PED-2026-002',
-    productName: 'Saco Ráfia Convencional 50x70',
-    plannedQty: 10000,
-    producedQty: 0,
-    status: 'pending',
-    startDate: '2026-03-15 08:00',
-    estimatedFinish: '2026-03-18 18:00',
-    waste: 0,
-  }
-];
+const statusMap: Record<string, ProductionOrder['status']> = {
+  open: 'pending',
+  planned: 'pending',
+  in_progress: 'in_progress',
+  paused: 'paused',
+  completed: 'completed',
+};
 
 export function ProductionPage() {
-  const [orders, setOrders] = useState<ProductionOrder[]>(MOCK_PO);
+  const [orders, setOrders] = useState<ProductionOrder[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getProductionOrders().then((list) => {
+      setOrders(list.map((op) => ({
+        id: op.id,
+        orderId: op.orderId ?? '—',
+        productName: (op.productSnapshot?.name as string) ?? op.productVariantId ?? 'Produto',
+        plannedQty: op.quantity,
+        producedQty: 0,
+        status: statusMap[op.status] ?? 'pending',
+        startDate: op.createdAt ? new Date(op.createdAt).toLocaleString('pt-BR') : '—',
+        estimatedFinish: '—',
+        waste: 0,
+      })));
+      setLoading(false);
+    });
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -65,7 +58,12 @@ export function ProductionPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-6">
-        {orders.map((op) => (
+        {loading ? (
+          <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-500">Carregando ordens de produção...</div>
+        ) : orders.length === 0 ? (
+          <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-500">Nenhuma ordem de produção. Crie a partir de um pedido.</div>
+        ) : (
+        orders.map((op) => (
           <div key={op.id} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col md:flex-row">
             <div className="p-6 flex-1">
               <div className="flex items-center justify-between mb-4">
@@ -118,12 +116,12 @@ export function ProductionPage() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-xs font-bold text-slate-500">
                   <span>Progresso da Produção</span>
-                  <span>{Math.round((op.producedQty / op.plannedQty) * 100)}%</span>
+                  <span>{op.plannedQty ? Math.round((op.producedQty / op.plannedQty) * 100) : 0}%</span>
                 </div>
                 <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
                   <div 
                     className="bg-emerald-500 h-full rounded-full transition-all duration-1000" 
-                    style={{ width: `${(op.producedQty / op.plannedQty) * 100}%` }}
+                    style={{ width: `${op.plannedQty ? (op.producedQty / op.plannedQty) * 100 : 0}%` }}
                   ></div>
                 </div>
               </div>
@@ -166,14 +164,14 @@ export function ProductionPage() {
                   </>
                 ) : (
                   <button className="flex-1 bg-slate-200 text-slate-600 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 cursor-not-allowed">
-                    <ArrowRight className="w-4 h-4" />
                     Detalhes
                   </button>
                 )}
               </div>
             </div>
           </div>
-        ))}
+        ))
+        )}
       </div>
     </div>
   );

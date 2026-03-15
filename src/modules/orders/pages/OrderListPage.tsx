@@ -9,7 +9,7 @@ import {
   Search,
   Filter
 } from 'lucide-react';
-import { MOCK_ORDERS } from '../mocks';
+import { orderService } from '../services/orderService';
 import { Order } from '../types';
 import { Button } from '../../../components/ui/Button';
 import { Card, CardContent } from '../../../components/ui/Card';
@@ -23,13 +23,24 @@ export function OrderListPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setTimeout(() => {
-      setOrders(MOCK_ORDERS);
-      setLoading(false);
-    }, 500);
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const data = await orderService.getOrders();
+        if (!cancelled) setOrders(data);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
-  const statusMap: any = {
+  const pendingCount = orders.filter((o) => o.status === 'pending').length;
+  const productionCount = orders.filter((o) => o.status === 'production').length;
+  const shippedCount = orders.filter((o) => o.status === 'shipped').length;
+
+  const statusMap: Record<string, { label: string; icon: typeof Clock; variant: string }> = {
     pending: { label: 'Pendente', icon: Clock, variant: 'warning' },
     production: { label: 'Em Produção', icon: Factory, variant: 'info' },
     shipped: { label: 'Enviado', icon: Truck, variant: 'info' },
@@ -48,10 +59,10 @@ export function OrderListPage() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon={ShoppingCart} label="Total Pedidos" value="158" color="blue" />
-        <StatCard icon={Clock} label="Aguardando" value="12" color="amber" />
-        <StatCard icon={Factory} label="Em Produção" value="45" color="emerald" />
-        <StatCard icon={Truck} label="Em Trânsito" value="8" color="indigo" />
+        <StatCard icon={ShoppingCart} label="Total Pedidos" value={String(orders.length)} color="blue" />
+        <StatCard icon={Clock} label="Aguardando" value={String(pendingCount)} color="amber" />
+        <StatCard icon={Factory} label="Em Produção" value={String(productionCount)} color="emerald" />
+        <StatCard icon={Truck} label="Em Trânsito" value={String(shippedCount)} color="indigo" />
       </div>
 
       {/* List */}
@@ -85,6 +96,12 @@ export function OrderListPage() {
           <TableBody>
             {loading ? (
               <TableRow className="animate-pulse h-20 bg-slate-50/50"><TableCell colSpan={6}></TableCell></TableRow>
+            ) : orders.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="px-6 py-12 text-center text-slate-500 text-sm">
+                  Nenhum pedido de venda cadastrado.
+                </TableCell>
+              </TableRow>
             ) : (
               orders.map((order) => {
                 const status = statusMap[order.status];
@@ -96,7 +113,7 @@ export function OrderListPage() {
                     <TableCell className="text-sm text-slate-500">{new Date(order.deliveryDate).toLocaleDateString('pt-BR')}</TableCell>
                     <TableCell className="text-sm font-bold text-slate-900">R$ {order.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</TableCell>
                     <TableCell>
-                      <Badge variant={status.variant} className="gap-1.5">
+                      <Badge variant={status.variant as any} className="gap-1.5">
                         <status.icon className="w-3 h-3" />
                         {status.label}
                       </Badge>

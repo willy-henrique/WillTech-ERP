@@ -1,20 +1,67 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# WillTech ERP — Sacaria Agro Ráfia
 
-# Run and deploy your AI Studio app
+Sistema web de gestão industrial e comercial para fábrica de sacaria agro ráfia: precificação, orçamentos, pedidos, produção, estoque, financeiro e relatórios.
 
-This contains everything you need to run your app locally.
+## Stack
 
-View your app in AI Studio: https://ai.studio/apps/97fd181d-746e-46f7-b3c1-14e1500712a0
+- **Frontend:** React 19, Vite, TypeScript, Tailwind, Recharts
+- **Backend:** Firebase (Firestore, Authentication, Cloud Functions)
+- **Banco:** Firestore (projeto `agrorafia-bc484`)
 
-## Run Locally
+## Pré-requisitos
 
-**Prerequisites:**  Node.js
+- Node.js >= 20
+- Conta Firebase e projeto configurado
 
+## Configuração
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+### 1. Clonar e instalar
+
+```bash
+npm install
+cd functions && npm install && cd ..
+```
+
+### 2. Variáveis de ambiente
+
+Copie `.env.example` para `.env.local` e preencha:
+
+- **Frontend:** variáveis `VITE_FIREBASE_*` com a config do projeto Firebase (Console > Configurações do projeto).
+- **Firebase Admin (opcional):** para rodar Cloud Functions localmente, use `GOOGLE_APPLICATION_CREDENTIALS` apontando para o arquivo de chave de serviço (ex.: `agrorafia.json`). **Não commite** o arquivo de chave; use `.gitignore` e em CI use secrets (ex.: GitHub Secrets).
+
+### 3. Executar
+
+**App (frontend):**
+
+```bash
+npm run dev
+```
+
+**Cloud Functions (build):**
+
+```bash
+cd functions && npm run build
+```
+
+**Deploy Firebase:**
+
+```bash
+firebase deploy
+```
+
+## Estrutura
+
+- `src/` — frontend React (módulos: dashboard, customers, products, pricing, orders, production, inventory, finance, reports, settings)
+- `functions/` — Cloud Functions (Node/TypeScript): pricing engine, auth, quotations, orders, production, inventory, audit
+- `firestore.rules` — regras de segurança Firestore
+- `firestore.indexes.json` — índices compostos
+
+## Segurança
+
+- O arquivo de chave de serviço (`agrorafia.json`) deve ficar fora do repositório ou em variável de ambiente em CI.
+- Autenticação: Firebase Auth (email/senha). Perfis (roles) via custom claims, definidos por Admin.
+- Firestore: leitura/escrita conforme Security Rules por `request.auth.token.role`.
+
+## Licença
+
+Projeto privado.

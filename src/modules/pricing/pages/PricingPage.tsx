@@ -1,19 +1,91 @@
-import { useState } from 'react';
-import { 
-  Calculator, 
-  Info, 
-  ArrowRight, 
-  CheckCircle2, 
-  AlertCircle,
-  RefreshCw,
-  Save
-} from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { Calculator, Info, ArrowRight, CheckCircle2, AlertCircle, RefreshCw, Save, Settings } from 'lucide-react';
 import { PricingParams, PricingResult } from '../types';
 import { calculatePricing } from '../utils/calculator';
+import { calculatePriceFromParams } from '../services/pricingService';
+import { pricingParametersService, type PricingParametersRecord } from '../../settings/services/pricingParametersService';
+import { calcularPrecoUnitario, calcularPrecoCompleto, DEFAULT_BANDS, type PricingConfig, type BandConfig, type SizeInput } from '../utils/calcEngine';
 import { Button } from '../../../components/ui/Button';
-import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/Card';
+import { Card } from '../../../components/ui/Card';
 import { Input } from '../../../components/ui/Input';
 import { clsx } from 'clsx';
+
+const printTypeToCloud = (p: string): 'liso' | 'frente' | 'frente_verso' =>
+  p === 'frente' ? 'frente' : p === 'frente e verso' ? 'frente_verso' : 'liso';
+
+// Valores numéricos como string nos inputs para permitir campo vazio (ex.: substituir 0 ao digitar)
+function toNum(s: string): number {
+  const n = Number(s);
+  return Number.isNaN(n) ? 0 : n;
+}
+
+function recordToPricingConfig(rec: PricingParametersRecord): PricingConfig {
+  return {
+    rafiaPricePerKg: rec.rafiaPricePerKg,
+    lineCost: rec.lineCost,
+    cutCost: rec.cutCost,
+    cutCostLarge: rec.cutCostLarge,
+    printCostPerSide: rec.printCostPerSide,
+    taxFactor: rec.taxFactor,
+  };
+}
+
+function recordBandsToConfig(rec: PricingParametersRecord): BandConfig[] {
+  const bands = rec.quantityBands;
+  if (bands?.length) return bands as BandConfig[];
+  return DEFAULT_BANDS;
+}
+
+function calculateWithConfig(
+  numericParams: PricingParams,
+  config: PricingParametersRecord,
+): PricingResult {
+  const pricingConfig = recordToPricingConfig(config);
+  const bands = recordBandsToConfig(config);
+  const size: SizeInput = {
+    label: `${numericParams.width}x${numericParams.length}`,
+    widthCm: numericParams.width,
+    lengthCm: numericParams.length,
+    material: numericParams.materialType === 'laminado' ? 'LAMINADO' : 'CONVENCIONAL',
+    grammage: numericParams.weight,
+  };
+  const printType = printTypeToCloud(numericParams.printingType);
+  const { unitPrice, unitCost, liquidProfit, band } = calcularPrecoUnitario(
+    size,
+    pricingConfig,
+    bands,
+    numericParams.quantity,
+    printType,
+  );
+  const row = calcularPrecoCompleto(size, pricingConfig, band);
+  const qty = numericParams.quantity;
+  const rawMaterialCost = row.custoRafia * qty;
+  const sewingCost = row.custoLinha * qty;
+  const cuttingCost = row.custoCorte * qty;
+  const printingCost =
+    printType === 'frente_verso'
+      ? (row.custoFrenteVerso - row.custoLiso) * qty
+      : printType === 'frente'
+        ? (row.custoFrente - row.custoLiso) * qty
+        : 0;
+  const totalCost = unitCost * qty;
+  const totalPrice = unitPrice * qty;
+  const marginAmount = liquidProfit * qty;
+  const taxAmount = Math.max(0, totalPrice - totalCost - marginAmount);
+  return {
+    rawMaterialCost,
+    printingCost,
+    cuttingCost,
+    sewingCost,
+    taxAmount,
+    marginAmount,
+    totalCost,
+    unitPrice,
+    totalPrice,
+    estimatedProfit: marginAmount,
+  };
+}
 
 export function PricingPage() {
   const [params, setParams] = useState<PricingParams>({
@@ -25,15 +97,108 @@ export function PricingPage() {
     quantity: 1000,
     additionalCosts: 0,
     margin: 15,
-    tax: 12
+    tax: 12,
   });
 
-  const [result, setResult] = useState<PricingResult | null>(null);
+  // Estado de exibição dos campos numéricos (string) para não forçar 0 ao apagar
+  const [widthStr, setWidthStr] = useState(String(params.width));
+  const [lengthStr, setLengthStr] = useState(String(params.length));
+  const [weightStr, setWeightStr] = useState(String(params.weight));
+  const [quantityStr, setQuantityStr] = useState(String(params.quantity));
+  const [marginStr, setMarginStr] = useState(String(params.margin));
 
-  const handleCalculate = () => {
-    const res = calculatePricing(params);
-    setResult(res);
+  const [result, setResult] = useState<PricingResult | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [useCloud, setUseCloud] = useState(true);
+
+  const [activeConfig, setActiveConfig] = useState<PricingParametersRecord | null>(null);
+  const [configHistory, setConfigHistory] = useState<PricingParametersRecord[]>([]);
+  const [configLoading, setConfigLoading] = useState(true);
+  const [selectedConfigId, setSelectedConfigId] = useState<string>('active');
+
+  useEffect(() => {
+    (async () => {
+      setConfigLoading(true);
+      try {
+        const [active, history] = await Promise.all([
+          pricingParametersService.getActive(),
+          pricingParametersService.getHistory(20),
+        ]);
+        setActiveConfig(active);
+        setConfigHistory(history);
+        setSelectedConfigId('active');
+      } finally {
+        setConfigLoading(false);
+      }
+    })();
+  }, []);
+
+  const selectedConfig: PricingParametersRecord | null =
+    selectedConfigId === 'active' ? activeConfig : configHistory.find((c) => c.id === selectedConfigId) ?? activeConfig;
+
+  useEffect(() => {
+    const planilha = selectedConfig?.planilhaExtras;
+    if (!planilha) return;
+    const grammage = params.materialType === 'laminado' ? planilha.grammageLaminado : planilha.grammageConventional;
+    setWeightStr(String(grammage));
+    setParams((p) => ({ ...p, weight: grammage }));
+  }, [params.materialType, selectedConfig?.id]);
+
+  const handleCalculate = async () => {
+    const numericParams: PricingParams = {
+      ...params,
+      width: toNum(widthStr),
+      length: toNum(lengthStr),
+      weight: toNum(weightStr),
+      quantity: toNum(quantityStr),
+      margin: toNum(marginStr),
+    };
+    setParams(numericParams);
+    setWidthStr(String(numericParams.width));
+    setLengthStr(String(numericParams.length));
+    setWeightStr(String(numericParams.weight));
+    setQuantityStr(String(numericParams.quantity));
+    setMarginStr(String(numericParams.margin));
+
+    if (useCloud) {
+      setLoading(true);
+      try {
+        const cloud = await calculatePriceFromParams({
+          width: numericParams.width,
+          length: numericParams.length,
+          grammage: numericParams.weight,
+          materialType: numericParams.materialType,
+          printType: printTypeToCloud(numericParams.printingType),
+          quantity: numericParams.quantity,
+        });
+        setResult({
+          rawMaterialCost: cloud.rawMaterialCost ?? 0,
+          printingCost: cloud.printingCost ?? 0,
+          cuttingCost: cloud.cuttingCost ?? 0,
+          sewingCost: cloud.lineCost ?? 0,
+          taxAmount: cloud.taxAmount,
+          marginAmount: cloud.marginAmount,
+          totalCost: cloud.totalCost,
+          unitPrice: cloud.unitPrice,
+          totalPrice: cloud.totalPrice,
+          estimatedProfit: cloud.marginAmount,
+        });
+      } catch (e) {
+        console.error(e);
+        if (selectedConfig) setResult(calculateWithConfig(numericParams, selectedConfig));
+        else setResult(calculatePricing(numericParams));
+      } finally {
+        setLoading(false);
+      }
+    } else {
+      if (selectedConfig) {
+        setResult(calculateWithConfig(numericParams, selectedConfig));
+      } else {
+        setResult(calculatePricing(numericParams));
+      }
+    }
   };
+
 
   return (
     <div className="space-y-6">
@@ -87,22 +252,22 @@ export function PricingPage() {
                 <Input 
                   label="Largura (cm)"
                   type="number" 
-                  value={params.width}
-                  onChange={(e) => setParams({...params, width: Number(e.target.value)})}
+                  value={widthStr}
+                  onChange={(e) => setWidthStr(e.target.value)}
                 />
                 <Input 
                   label="Comprimento (cm)"
                   type="number" 
-                  value={params.length}
-                  onChange={(e) => setParams({...params, length: Number(e.target.value)})}
+                  value={lengthStr}
+                  onChange={(e) => setLengthStr(e.target.value)}
                 />
               </div>
 
               <Input 
                 label="Gramatura (g/m²)"
                 type="number" 
-                value={params.weight}
-                onChange={(e) => setParams({...params, weight: Number(e.target.value)})}
+                value={weightStr}
+                onChange={(e) => setWeightStr(e.target.value)}
               />
 
               <div>
@@ -124,23 +289,86 @@ export function PricingPage() {
                 <Input 
                   label="Quantidade"
                   type="number" 
-                  value={params.quantity}
-                  onChange={(e) => setParams({...params, quantity: Number(e.target.value)})}
+                  value={quantityStr}
+                  onChange={(e) => setQuantityStr(e.target.value)}
                   className="font-bold"
                 />
                 <Input 
                   label="Margem (%)"
                   type="number" 
-                  value={params.margin}
-                  onChange={(e) => setParams({...params, margin: Number(e.target.value)})}
+                  value={marginStr}
+                  onChange={(e) => setMarginStr(e.target.value)}
                 />
               </div>
 
-              <Button 
+              {!configLoading && (
+                <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3 space-y-2">
+                  <p className="text-xs font-bold text-slate-500 uppercase">Configuração de precificação</p>
+                  {activeConfig ? (
+                    <>
+                      <p className="text-sm text-slate-700">
+                        Parâmetros vigentes desde{' '}
+                        <span className="font-medium">
+                          {new Date(activeConfig.validFrom).toLocaleDateString('pt-BR', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </span>
+                      </p>
+                      {!useCloud && configHistory.length > 0 && (
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Usar configuração</label>
+                          <select
+                            value={selectedConfigId}
+                            onChange={(e) => setSelectedConfigId(e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:border-emerald-500"
+                          >
+                            <option value="active">Vigente</option>
+                            {configHistory.map((h) => (
+                              <option key={h.id} value={h.id}>
+                                {new Date(h.validFrom).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                      <Link
+                        to="/configurar-precos"
+                        className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-600 hover:text-emerald-700"
+                      >
+                        <Settings className="w-4 h-4" />
+                        Alterar em Configurar Preços
+                      </Link>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm text-amber-700">
+                        Nenhum parâmetro cadastrado. O cálculo usará valores padrão.
+                      </p>
+                      <Link
+                        to="/configurar-precos"
+                        className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-600 hover:text-emerald-700"
+                      >
+                        <Settings className="w-4 h-4" />
+                        Configurar em Configurar Preços
+                      </Link>
+                    </>
+                  )}
+                </div>
+              )}
+              <label className="flex items-center gap-2 text-sm text-slate-600">
+                <input type="checkbox" checked={useCloud} onChange={(e) => setUseCloud(e.target.checked)} />
+                Usar motor do servidor (parâmetros vigentes)
+              </label>
+              <Button
                 onClick={handleCalculate}
+                disabled={loading}
                 className="w-full py-3 rounded-xl font-bold gap-2 mt-4 shadow-lg shadow-emerald-200"
               >
-                Calcular Preço
+                {loading ? 'Calculando...' : 'Calcular Preço'}
                 <ArrowRight className="w-4 h-4" />
               </Button>
             </div>
@@ -211,7 +439,9 @@ export function PricingPage() {
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-bold text-emerald-800">Markup Aplicado</span>
                         <span className="text-sm font-black text-emerald-800">
-                          {(result.unitPrice / (result.totalCost / params.quantity)).toFixed(2)}x
+                          {params.quantity > 0 && result.totalCost > 0
+                            ? (result.unitPrice / (result.totalCost / params.quantity)).toFixed(2) + 'x'
+                            : '—'}
                         </span>
                       </div>
                     </div>
@@ -220,7 +450,7 @@ export function PricingPage() {
               </div>
 
               <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+                <AlertCircle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
                 <p className="text-xs text-amber-800 leading-relaxed">
                   <strong>Atenção:</strong> Este cálculo é uma simulação baseada nos custos operacionais atuais. 
                   Variações no preço do Polipropileno (PP) no mercado internacional podem afetar a margem real. 

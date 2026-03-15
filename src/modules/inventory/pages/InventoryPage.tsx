@@ -1,15 +1,7 @@
-import { useState } from 'react';
-import { 
-  Database, 
-  ArrowUpRight, 
-  ArrowDownRight, 
-  Search, 
-  Filter, 
-  AlertTriangle,
-  History,
-  Plus
-} from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Database, AlertTriangle, History, Plus, Search } from 'lucide-react';
 import { clsx } from 'clsx';
+import { getInventoryItems } from '../services/inventoryService';
 
 interface InventoryItem {
   id: string;
@@ -22,16 +14,31 @@ interface InventoryItem {
   status: 'ok' | 'warning' | 'critical';
 }
 
-const MOCK_INVENTORY: InventoryItem[] = [
-  { id: '1', name: 'Polipropileno Virgem (PP)', category: 'Resina', balance: 450, unit: 'kg', minStock: 1000, lastMovement: '2026-03-13', status: 'critical' },
-  { id: '2', name: 'Polipropileno Reciclado', category: 'Resina', balance: 1200, unit: 'kg', minStock: 500, lastMovement: '2026-03-12', status: 'ok' },
-  { id: '3', name: 'Tinta Branca Ráfia', category: 'Tintas', balance: 12, unit: 'un', minStock: 20, lastMovement: '2026-03-10', status: 'warning' },
-  { id: '4', name: 'Linha de Costura 20/3', category: 'Insumos', balance: 5, unit: 'un', minStock: 15, lastMovement: '2026-03-11', status: 'critical' },
-  { id: '5', name: 'Solvente Especial', category: 'Químicos', balance: 8, unit: 'L', minStock: 10, lastMovement: '2026-03-13', status: 'warning' },
-];
+function statusFromBalance(balance: number, minStock: number): InventoryItem['status'] {
+  if (minStock > 0 && balance <= minStock * 0.5) return 'critical';
+  if (minStock > 0 && balance <= minStock) return 'warning';
+  return 'ok';
+}
 
 export function InventoryPage() {
-  const [items] = useState<InventoryItem[]>(MOCK_INVENTORY);
+  const [items, setItems] = useState<InventoryItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getInventoryItems().then((list) => {
+      setItems(list.map((i) => ({
+        id: i.id,
+        name: i.name ?? i.id,
+        category: 'Estoque',
+        balance: i.quantity,
+        unit: i.unit,
+        minStock: i.minQuantity,
+        lastMovement: i.updatedAt ? new Date(i.updatedAt).toLocaleDateString('pt-BR') : '—',
+        status: statusFromBalance(i.quantity, i.minQuantity),
+      })));
+      setLoading(false);
+    });
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -57,27 +64,28 @@ export function InventoryPage() {
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
           <p className="text-xs font-bold text-slate-400 uppercase mb-1">Itens em Alerta</p>
           <div className="flex items-center justify-between">
-            <p className="text-3xl font-black text-amber-600">3</p>
+            <p className="text-3xl font-black text-amber-600">{items.filter((i) => i.status === 'warning').length}</p>
             <AlertTriangle className="w-8 h-8 text-amber-200" />
           </div>
         </div>
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
           <p className="text-xs font-bold text-slate-400 uppercase mb-1">Itens Críticos</p>
           <div className="flex items-center justify-between">
-            <p className="text-3xl font-black text-red-600">2</p>
+            <p className="text-3xl font-black text-red-600">{items.filter((i) => i.status === 'critical').length}</p>
             <AlertTriangle className="w-8 h-8 text-red-200" />
           </div>
         </div>
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-          <p className="text-xs font-bold text-slate-400 uppercase mb-1">Valor em Estoque</p>
+          <p className="text-xs font-bold text-slate-400 uppercase mb-1">Itens Cadastrados</p>
           <div className="flex items-center justify-between">
-            <p className="text-3xl font-black text-slate-800">R$ 84.500</p>
+            <p className="text-3xl font-black text-slate-800">{items.length}</p>
             <Database className="w-8 h-8 text-slate-200" />
           </div>
         </div>
       </div>
 
       {/* Table */}
+      {loading && <div className="text-slate-500 py-4">Carregando...</div>}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row gap-4">
           <div className="flex-1 relative">
@@ -109,6 +117,15 @@ export function InventoryPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
+              {!loading && items.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
+                    <Database className="w-12 h-12 mx-auto mb-2 text-slate-300" />
+                    <p className="font-medium">Nenhum item no estoque</p>
+                    <p className="text-sm mt-1">Cadastre materiais em Materiais ou adicione entradas para ver o saldo aqui.</p>
+                  </td>
+                </tr>
+              )}
               {items.map((item) => (
                 <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-4">
@@ -150,7 +167,7 @@ export function InventoryPage() {
                     </div>
                   </td>
                   <td className="px-6 py-4 text-sm text-slate-500">
-                    {new Date(item.lastMovement).toLocaleDateString('pt-BR')}
+                    {item.lastMovement}
                   </td>
                 </tr>
               ))}

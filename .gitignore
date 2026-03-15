@@ -6,3 +6,6 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Firebase service account key (use GOOGLE_APPLICATION_CREDENTIALS or env in CI)
+agrorafia.json

@@ -1,44 +1,37 @@
 import { PricingParams, PricingResult } from '../types';
 
-// Custos base mockados (em um cenário real viriam do banco/configurações)
-const COSTS = {
-  PP_KG: 12.50, // Polipropileno por KG
-  LAMINADO_KG_EXTRA: 2.00, // Adicional por KG se for laminado
-  PRINT_FRENTE: 0.05, // Custo por unidade para impressão frente
-  PRINT_FRENTE_VERSO: 0.09, // Custo por unidade para impressão frente e verso
-  CORTE: 0.02, // Custo de corte por unidade
-  COSTURA: 0.03, // Custo de costura por unidade
+/**
+ * Fallback quando não existe configuração em Configurar Preços / Firestore.
+ * Usa valores padrão de referência (alinhados ao backend) para exibir uma estimativa.
+ * Configure em Configurar Preços para usar custos reais.
+ */
+const FALLBACK_COSTS = {
+  rafiaPricePerKg: 14,
+  cutCost: 0.02,
+  lineCost: 0.03,
+  printFrente: 0.05,
+  printFrenteVerso: 0.09,
 };
 
 export function calculatePricing(params: PricingParams): PricingResult {
   const { width, length, weight, materialType, printingType, quantity, additionalCosts, margin, tax } = params;
 
-  // 1. Calcular peso do saco em gramas
-  // Área em m2 = (largura * 2 * comprimento) / 10000 (saco tem duas faces)
   const areaM2 = (width * 2 * length) / 10000;
-  const weightGrams = areaM2 * weight;
-  const weightKg = weightGrams / 1000;
+  const weightKg = (areaM2 * weight) / 1000;
+  const rawMaterialCost = weightKg * FALLBACK_COSTS.rafiaPricePerKg;
 
-  // 2. Custo de Matéria Prima
-  const baseKgCost = materialType === 'laminado' ? COSTS.PP_KG + COSTS.LAMINADO_KG_EXTRA : COSTS.PP_KG;
-  const rawMaterialCost = weightKg * baseKgCost;
-
-  // 3. Custo de Impressão
   let printingCost = 0;
-  if (printingType === 'frente') printingCost = COSTS.PRINT_FRENTE;
-  if (printingType === 'frente e verso') printingCost = COSTS.PRINT_FRENTE_VERSO;
+  if (printingType === 'frente') printingCost = FALLBACK_COSTS.printFrente;
+  if (printingType === 'frente e verso') printingCost = FALLBACK_COSTS.printFrenteVerso;
 
-  // 4. Custos Operacionais
-  const cuttingCost = COSTS.CORTE;
-  const sewingCost = COSTS.COSTURA;
+  const cuttingCost = FALLBACK_COSTS.cutCost;
+  const sewingCost = FALLBACK_COSTS.lineCost;
 
-  // 5. Soma dos Custos Diretos Unitários
-  const unitDirectCost = rawMaterialCost + printingCost + cuttingCost + sewingCost + (additionalCosts / quantity);
+  const safeQty = quantity > 0 ? quantity : 1;
+  const unitDirectCost = rawMaterialCost + printingCost + cuttingCost + sewingCost + additionalCosts / safeQty;
 
-  // 6. Impostos e Margem (sobre o preço de venda)
-  // PV = Custo / (1 - (Tax + Margin)/100)
-  const divisor = 1 - ((tax + margin) / 100);
-  const unitPrice = unitDirectCost / divisor;
+  const divisor = 1 - (tax + margin) / 100;
+  const unitPrice = Math.abs(divisor) > 1e-6 ? unitDirectCost / divisor : 0;
 
   const totalPrice = unitPrice * quantity;
   const taxAmount = unitPrice * (tax / 100) * quantity;

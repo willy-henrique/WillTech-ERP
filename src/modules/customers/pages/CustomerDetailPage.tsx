@@ -12,6 +12,7 @@ import {
   Edit2
 } from 'lucide-react';
 import { customerService } from '../services/customerService';
+import { orderService } from '../../orders/services/orderService';
 import { Customer } from '../types';
 import { Button } from '../../../components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/Card';
@@ -21,21 +22,35 @@ export function CustomerDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [customer, setCustomer] = useState<Customer | null>(null);
+  const [customerOrders, setCustomerOrders] = useState<Array<{ id: string; date: string; totalAmount: number; status: string; rawStatus: string }>>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function loadCustomer() {
+    async function load() {
+      if (!id) return;
       setLoading(true);
       try {
-        // In a real app, we'd have a getCustomerById service
-        const all = await customerService.getCustomers({});
-        const found = all.find(c => c.id === id);
+        const [allCustomers, allOrders] = await Promise.all([
+          customerService.getCustomers({}),
+          orderService.getOrders(),
+        ]);
+        const found = allCustomers.find((c) => c.id === id) ?? null;
         setCustomer(found || null);
+        const byCustomer = allOrders.filter((o) => o.customerId === id);
+        setCustomerOrders(
+          byCustomer.map((o) => ({
+            id: o.id,
+            date: o.date,
+            totalAmount: o.totalAmount,
+            rawStatus: o.status,
+            status: o.status === 'delivered' ? 'Entregue' : o.status === 'production' ? 'Produção' : o.status === 'shipped' ? 'Enviado' : o.status === 'pending' ? 'Pendente' : 'Cancelado',
+          }))
+        );
       } finally {
         setLoading(false);
       }
     }
-    loadCustomer();
+    load();
   }, [id]);
 
   if (loading) {
@@ -87,7 +102,7 @@ export function CustomerDetailPage() {
                 </div>
                 <div className="flex items-center gap-3 text-sm text-slate-600">
                   <Phone className="w-4 h-4 text-slate-400" />
-                  (11) 98765-4321
+                  {customer.phone || '—'}
                 </div>
                 <div className="flex items-center gap-3 text-sm text-slate-600">
                   <MapPin className="w-4 h-4 text-slate-400" />
@@ -114,11 +129,15 @@ export function CustomerDetailPage() {
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm text-slate-500">Volume Total</span>
-                <span className="font-bold text-slate-900">125.000 un</span>
+                <span className="font-bold text-slate-900">—</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm text-slate-500">Ticket Médio</span>
-                <span className="font-bold text-slate-900">R$ 15.200,00</span>
+                <span className="font-bold text-slate-900">
+                  {customerOrders.length > 0
+                    ? `R$ ${(customerOrders.reduce((a, o) => a + o.totalAmount, 0) / customerOrders.length).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+                    : '—'}
+                </span>
               </div>
             </CardContent>
           </Card>
@@ -127,9 +146,34 @@ export function CustomerDetailPage() {
         {/* Right Column: Details & History */}
         <div className="flex-1 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <StatCard title="Total Faturado" value="R$ 185.400" icon={CreditCard} color="emerald" />
-            <StatCard title="Pedidos Ativos" value="3" icon={ShoppingBag} color="blue" />
-            <StatCard title="Última Compra" value="12/03/2026" icon={History} color="slate" />
+            <StatCard
+              title="Total Faturado"
+              value={
+                customerOrders.length > 0
+                  ? `R$ ${customerOrders.reduce((a, o) => a + o.totalAmount, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+                  : '—'
+              }
+              icon={CreditCard}
+              color="emerald"
+            />
+            <StatCard
+              title="Pedidos Ativos"
+              value={String(customerOrders.filter((o) => ['pending', 'production', 'shipped'].includes(o.rawStatus)).length)}
+              icon={ShoppingBag}
+              color="blue"
+            />
+            <StatCard
+              title="Última Compra"
+              value={
+                customer.lastOrderDate
+                  ? new Date(customer.lastOrderDate).toLocaleDateString('pt-BR')
+                  : customerOrders.length > 0
+                    ? new Date(customerOrders.reduce((max, o) => (o.date > max ? o.date : max), '')).toLocaleDateString('pt-BR')
+                    : '—'
+              }
+              icon={History}
+              color="slate"
+            />
           </div>
 
           <Card>
@@ -149,9 +193,23 @@ export function CustomerDetailPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    <OrderRow id="PED-2026-001" date="12/03/2026" value="R$ 12.500,00" status="Produção" />
-                    <OrderRow id="PED-2026-002" date="05/03/2026" value="R$ 8.200,00" status="Entregue" />
-                    <OrderRow id="PED-2025-985" date="20/02/2026" value="R$ 15.000,00" status="Entregue" />
+                    {customerOrders.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="px-6 py-8 text-center text-slate-400 text-sm">
+                          Nenhum pedido para este cliente.
+                        </td>
+                      </tr>
+                    ) : (
+                      customerOrders.map((o) => (
+                        <OrderRow
+                          key={o.id}
+                          id={o.id}
+                          date={new Date(o.date).toLocaleDateString('pt-BR')}
+                          value={`R$ ${o.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                          status={o.status}
+                        />
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>

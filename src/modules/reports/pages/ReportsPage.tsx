@@ -20,16 +20,8 @@ import {
   DollarSign
 } from 'lucide-react';
 
-const salesData = [
-  { month: 'Set', vendas: 320000, meta: 300000 },
-  { month: 'Out', vendas: 350000, meta: 320000 },
-  { month: 'Nov', vendas: 380000, meta: 350000 },
-  { month: 'Dez', vendas: 420000, meta: 400000 },
-  { month: 'Jan', vendas: 390000, meta: 410000 },
-  { month: 'Fev', vendas: 450000, meta: 420000 },
-];
-
 export function ReportsPage() {
+  const salesData: Array<{ month: string; vendas: number; meta: number }> = [];
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -51,42 +43,50 @@ export function ReportsPage() {
 
       {/* KPI Grid */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <KpiCard title="Ticket Médio" value="R$ 12.450" change="+5.2%" icon={DollarSign} />
-        <KpiCard title="Novos Clientes" value="12" change="+2" icon={Users} />
-        <KpiCard title="Eficiência Produtiva" value="94.2%" change="+1.5%" icon={TrendingUp} />
-        <KpiCard title="Volume Produzido" value="452k un" change="+12k" icon={Package} />
+        <KpiCard title="Ticket Médio" value="—" change="" icon={DollarSign} />
+        <KpiCard title="Novos Clientes" value="—" change="" icon={Users} />
+        <KpiCard title="Eficiência Produtiva" value="—" change="" icon={TrendingUp} />
+        <KpiCard title="Volume Produzido" value="—" change="" icon={Package} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
           <h3 className="font-bold text-slate-800 mb-6">Vendas vs Meta</h3>
-          <div className="h-80 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={salesData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#64748b'}} />
-                <YAxis axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#64748b'}} />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="vendas" name="Vendas Reais" fill="#10b981" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="meta" name="Meta Estipulada" fill="#e2e8f0" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="h-80 w-full flex items-center justify-center">
+            {salesData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={salesData}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#64748b'}} />
+                  <YAxis axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#64748b'}} />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="vendas" name="Vendas Reais" fill="#10b981" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="meta" name="Meta Estipulada" fill="#e2e8f0" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-slate-400 text-sm">Sem dados de vendas. Integre pedidos ou CRM para exibir gráficos.</p>
+            )}
           </div>
         </div>
 
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
           <h3 className="font-bold text-slate-800 mb-6">Evolução da Margem</h3>
-          <div className="h-80 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={salesData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#64748b'}} />
-                <YAxis axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#64748b'}} />
-                <Tooltip />
-                <Line type="monotone" dataKey="vendas" name="Margem %" stroke="#3b82f6" strokeWidth={3} dot={{ r: 4, fill: '#3b82f6' }} />
-              </LineChart>
-            </ResponsiveContainer>
+          <div className="h-80 w-full flex items-center justify-center">
+            {salesData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={salesData}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#64748b'}} />
+                  <YAxis axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#64748b'}} />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="vendas" name="Margem %" stroke="#3b82f6" strokeWidth={3} dot={{ r: 4, fill: '#3b82f6' }} />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-slate-400 text-sm">Sem dados de margem.</p>
+            )}
           </div>
         </div>
       </div>

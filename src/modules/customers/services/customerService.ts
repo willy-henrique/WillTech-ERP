@@ -1,35 +1,57 @@
-import { Customer, CustomerFilters } from '../types';
-import { MOCK_CUSTOMERS } from '../mocks';
+import { collection, query, where, getDocs, doc, getDoc, addDoc, updateDoc, orderBy } from 'firebase/firestore';
+import { db } from '../../../lib/firebase';
+import type { Customer, CustomerFilters } from '../types';
+
+function mapDocToCustomer(id: string, data: Record<string, unknown>): Customer {
+  return {
+    id,
+    name: (data.name as string) ?? '',
+    email: (data.email as string) ?? '',
+    phone: (data.phone as string) ?? '',
+    document: (data.document as string) ?? '',
+    status: (data.status as Customer['status']) ?? 'active',
+    city: (data.city as string) ?? '',
+    state: (data.state as string) ?? '',
+    totalOrders: (data.totalOrders as number) ?? 0,
+    lastOrderDate: data.lastOrderDate as string | undefined,
+    createdAt: (data.createdAt as { toDate?: () => Date })?.toDate?.()?.toISOString?.() ?? (data.createdAt as string) ?? '',
+  };
+}
 
 export const customerService = {
-  getCustomers: async (filters?: CustomerFilters): Promise<Customer[]> => {
-    // Simula latência de rede
-    await new Promise(resolve => setTimeout(resolve, 800));
-
-    let filtered = [...MOCK_CUSTOMERS];
-
+  async getCustomers(filters?: CustomerFilters): Promise<Customer[]> {
+    const q = query(collection(db, 'customers'), orderBy('name'));
+    const snap = await getDocs(q);
+    let list = snap.docs.map((d) => mapDocToCustomer(d.id, d.data()));
+    if (filters?.status) list = list.filter((c) => c.status === filters.status);
+    if (filters?.state) list = list.filter((c) => c.state === filters.state);
     if (filters?.search) {
       const search = filters.search.toLowerCase();
-      filtered = filtered.filter(c => 
-        c.name.toLowerCase().includes(search) || 
-        c.document.includes(search) ||
-        c.email.toLowerCase().includes(search)
+      list = list.filter(
+        (c) =>
+          c.name.toLowerCase().includes(search) ||
+          (c.document ?? '').includes(search) ||
+          c.email.toLowerCase().includes(search)
       );
     }
-
-    if (filters?.status) {
-      filtered = filtered.filter(c => c.status === filters.status);
-    }
-
-    if (filters?.state) {
-      filtered = filtered.filter(c => c.state === filters.state);
-    }
-
-    return filtered;
+    return list;
   },
 
-  getCustomerById: async (id: string): Promise<Customer | undefined> => {
-    await new Promise(resolve => setTimeout(resolve, 400));
-    return MOCK_CUSTOMERS.find(c => c.id === id);
-  }
+  async getCustomerById(id: string): Promise<Customer | undefined> {
+    const d = await getDoc(doc(db, 'customers', id));
+    if (!d.exists()) return undefined;
+    return mapDocToCustomer(d.id, d.data());
+  },
+
+  async createCustomer(data: Omit<Customer, 'id' | 'createdAt'>): Promise<string> {
+    const ref = await addDoc(collection(db, 'customers'), {
+      ...data,
+      createdAt: new Date().toISOString(),
+    });
+    return ref.id;
+  },
+
+  async updateCustomer(id: string, data: Partial<Omit<Customer, 'id'>>): Promise<void> {
+    await updateDoc(doc(db, 'customers', id), { ...data, updatedAt: new Date().toISOString() });
+  },
 };

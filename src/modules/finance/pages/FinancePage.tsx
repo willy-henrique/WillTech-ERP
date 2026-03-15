@@ -21,16 +21,8 @@ interface Transaction {
   status: 'paid' | 'pending' | 'overdue';
 }
 
-const MOCK_FINANCE: Transaction[] = [
-  { id: '1', description: 'Venda Pedido PED-2026-001', customer: 'Cooperativa Agrícola Regional', amount: 5250.00, dueDate: '2026-03-25', type: 'income', status: 'pending' },
-  { id: '2', description: 'Compra Matéria Prima (PP)', customer: 'Braskem S.A.', amount: 12400.00, dueDate: '2026-03-15', type: 'expense', status: 'pending' },
-  { id: '3', description: 'Venda Pedido PED-2026-003', customer: 'Agro Industrial Vale do Sol', amount: 8900.00, dueDate: '2026-03-10', type: 'income', status: 'paid' },
-  { id: '4', description: 'Energia Elétrica - Fábrica', customer: 'Energisa', amount: 3200.00, dueDate: '2026-03-05', type: 'expense', status: 'paid' },
-  { id: '5', description: 'Venda Pedido PED-2026-005', customer: 'Sementes Progresso S.A.', amount: 15400.00, dueDate: '2026-03-01', type: 'income', status: 'overdue' },
-];
-
 export function FinancePage() {
-  const [transactions] = useState<Transaction[]>(MOCK_FINANCE);
+  const [transactions] = useState<Transaction[]>([]);
 
   return (
     <div className="space-y-6">
@@ -58,27 +50,24 @@ export function FinancePage() {
             <p className="text-xs font-bold text-slate-400 uppercase">Saldo em Caixa</p>
             <DollarSign className="w-5 h-5 text-slate-300" />
           </div>
-          <p className="text-3xl font-black text-slate-800">R$ 142.300,00</p>
-          <div className="mt-4 flex items-center gap-2 text-xs text-emerald-600 font-bold">
-            <ArrowUpCircle className="w-3 h-3" />
-            +R$ 12.400 este mês
-          </div>
+          <p className="text-3xl font-black text-slate-800">—</p>
+          <p className="mt-4 text-xs text-slate-400">Integre contas a pagar/receber para exibir o saldo.</p>
         </div>
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs font-bold text-slate-400 uppercase">A Receber (30 dias)</p>
             <ArrowUpCircle className="w-5 h-5 text-emerald-400" />
           </div>
-          <p className="text-3xl font-black text-emerald-600">R$ 85.900,00</p>
-          <p className="mt-4 text-xs text-slate-400">12 títulos pendentes</p>
+          <p className="text-3xl font-black text-emerald-600">—</p>
+          <p className="mt-4 text-xs text-slate-400">Nenhum título a receber cadastrado.</p>
         </div>
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs font-bold text-slate-400 uppercase">A Pagar (30 dias)</p>
             <ArrowDownCircle className="w-5 h-5 text-red-400" />
           </div>
-          <p className="text-3xl font-black text-red-600">R$ 42.150,00</p>
-          <p className="mt-4 text-xs text-slate-400">8 títulos pendentes</p>
+          <p className="text-3xl font-black text-red-600">—</p>
+          <p className="mt-4 text-xs text-slate-400">Nenhum título a pagar cadastrado.</p>
         </div>
       </div>
 
@@ -117,7 +106,13 @@ export function FinancePage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {transactions.map((t) => (
+              {transactions.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-12 text-center text-slate-500 text-sm">
+                    Nenhum lançamento financeiro. Cadastre contas a pagar e receber para exibir aqui.
+                  </td>
+                </tr>
+              ) : transactions.map((t) => (
                 <tr key={t.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-4">
                     <p className="text-sm font-bold text-slate-900">{t.description}</p>
